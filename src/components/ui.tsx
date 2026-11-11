@@ -71,15 +71,29 @@ export function Popover({
     const h = panelRef.current?.offsetHeight ?? 300;
     const up = r.bottom + h + 12 > window.innerHeight && r.top > h + 12;
     const left = align === "end" ? r.right - width : r.left;
-    setPos({ top: up ? r.top - h - 6 : r.bottom + 6, left: Math.max(8, Math.min(left, window.innerWidth - width - 8)), up });
-  }, [align, width]);
+    // A transformed host (e.g. <dialog> mid-animation) becomes the containing block for
+    // position:fixed, so convert viewport coords into host-relative ones.
+    let dx = 0, dy = 0;
+    if (host && host !== document.body && getComputedStyle(host).transform !== "none") {
+      const hr = host.getBoundingClientRect();
+      dx = hr.left + host.clientLeft - host.scrollLeft;
+      dy = hr.top + host.clientTop - host.scrollTop;
+    }
+    setPos({
+      top: (up ? r.top - h - 6 : r.bottom + 6) - dy,
+      left: Math.max(8, Math.min(left, window.innerWidth - width - 8)) - dx,
+      up,
+    });
+  }, [align, width, host]);
 
   useLayoutEffect(() => {
     if (!open || mobile) return;
     place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    host?.addEventListener("animationend", place);
     return () => {
+      host?.removeEventListener("animationend", place);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
