@@ -8,7 +8,7 @@ import { PRIORITY, PROJECT_STATUS, PROJECT_TYPE } from "@/db/schema";
 import { getDb, schema } from "@/db";
 import { SESSION_COOKIE, safeEqual, sessionToken } from "@/lib/auth";
 import { isValidDay } from "@/lib/time";
-import { isProjectsCategory } from "@/lib/categories";
+import { taggableType } from "@/lib/categories";
 
 const { timeLogs, reflections, projects, projectLogs, todos, settings, categories } = schema;
 
@@ -78,10 +78,14 @@ export async function saveLog(input: LogInput): Promise<SaveLogResult> {
     notes: str(input.notes) || null,
   };
   const db = await getDb();
-  // A project tag only makes sense under the "Projects" category.
+  // Build projects can only be tagged under "Projects", learnings only under "Learning".
   if (values.categoryId != null && input.projectId != null) {
-    const [cat] = await db.select({ name: categories.name }).from(categories).where(eq(categories.id, values.categoryId));
-    if (cat && isProjectsCategory(cat.name)) values.projectId = Math.trunc(input.projectId);
+    const [[cat], [proj]] = await Promise.all([
+      db.select({ name: categories.name }).from(categories).where(eq(categories.id, values.categoryId)),
+      db.select({ type: projects.type }).from(projects).where(eq(projects.id, Math.trunc(input.projectId))),
+    ]);
+    const type = taggableType(cat?.name);
+    if (type && proj && proj.type === type) values.projectId = Math.trunc(input.projectId);
   }
   const clash = await db
     .select({ id: timeLogs.id, start: timeLogs.startMinute, activity: timeLogs.activity })

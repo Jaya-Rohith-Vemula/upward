@@ -9,7 +9,7 @@ import { addDays, nowMinuteExactIn, todayIn, fmtDuration, fmtHourShort, fmtHours
 import { Scale } from "./scale";
 import { DatePicker, Select, useIsMobile } from "./ui";
 import { createPortal } from "react-dom";
-import { isProjectsCategory } from "@/lib/categories";
+import { taggableType } from "@/lib/categories";
 
 /** Pixels per minute on the calendar grid (1 hour = 72px, 15 min = 18px). */
 const PPM = 1.2;
@@ -26,7 +26,7 @@ type Props = {
   week: { day: string; minutes: number }[];
 };
 
-type ProjectOption = { id: number; title: string; status: string };
+type ProjectOption = { id: number; title: string; status: string; type: "build" | "learn" };
 type Range = { start: number; end: number };
 type Draft = Pick<TimeLog, "activity" | "categoryId" | "projectId" | "focus" | "energy" | "notes">;
 type Editing = { range: Range; log: TimeLog | null } | null;
@@ -686,12 +686,13 @@ function Editor({
     notes: log?.notes ?? null,
   });
   const [showNotes, setShowNotes] = useState(!!log?.notes);
-  const isProjectCat = (id: number | null) => id != null && isProjectsCategory(categories.find((c) => c.id === id)?.name);
-  const showProjects = isProjectCat(d.categoryId);
+  const typeOfCat = (id: number | null) => (id == null ? null : taggableType(categories.find((c) => c.id === id)?.name));
+  const tagType = typeOfCat(d.categoryId);
+  const showProjects = tagType != null;
   // Live projects first (in progress, then up next), then the rest; finished/dropped only if already tagged.
   const statusRank: Record<string, number> = { active: 0, next: 1, paused: 2, idea: 3 };
   const projectChoices = projects
-    .filter((p) => p.id === d.projectId || (p.status !== "done" && p.status !== "dropped"))
+    .filter((p) => p.type === tagType && (p.id === d.projectId || (p.status !== "done" && p.status !== "dropped")))
     .sort((a, b) => (statusRank[a.status] ?? 4) - (statusRank[b.status] ?? 4) || a.title.localeCompare(b.title));
 
   const others = logs.filter((l) => l.id !== log?.id);
@@ -761,7 +762,7 @@ function Editor({
                 aria-pressed={on}
                 onClick={() => {
                   const next = on ? null : c.id;
-                  setD({ ...d, categoryId: next, projectId: isProjectCat(next) ? d.projectId : null });
+                  setD({ ...d, categoryId: next, projectId: typeOfCat(next) === tagType ? d.projectId : null });
                 }}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   on ? "border-transparent text-paper" : "border-rule-strong text-ink-2 hover:border-ink-2"
@@ -778,7 +779,7 @@ function Editor({
 
       {showProjects && (
         <fieldset className="-mt-2 border-l-2 border-rule pl-3">
-          <legend className="eyebrow mb-2">Project</legend>
+          <legend className="eyebrow mb-2">{tagType === "learn" ? "Learning" : "Project"}</legend>
           {projectChoices.length ? (
             <div className="flex flex-wrap gap-1.5">
               {projectChoices.map((p) => {
@@ -800,7 +801,8 @@ function Editor({
             </div>
           ) : (
             <p className="text-xs text-muted">
-              No projects yet. <Link href="/projects" className="underline underline-offset-4 hover:text-ink">Add one</Link> to tag time to it.
+              No {tagType === "learn" ? "learnings" : "projects"} yet.{" "}
+              <Link href={tagType === "learn" ? "/learnings" : "/projects"} className="underline underline-offset-4 hover:text-ink">Add one</Link> to tag time to it.
             </p>
           )}
         </fieldset>
