@@ -21,6 +21,7 @@ import type { ProjectCard } from "@/lib/data";
 import { createProject, updateProject } from "@/app/actions";
 import { Pill, STATUS_OPTIONS, TYPE_OPTIONS, tagColor } from "./props";
 import { ProjectModal } from "./project-modal";
+import { fmtHours } from "@/lib/time";
 
 type Status = ProjectCard["status"];
 const COLUMNS: { status: Status; label: string; hint: string }[] = [
@@ -132,7 +133,7 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
           placeholder="New idea… (#tag !high)"
           onAdd={async (t) => {
             const row = await createProject(t, "idea", typeFilter === "learn" ? "learn" : "build");
-            if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0 }, ...cs]);
+            if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0, minutesLogged: 0 }, ...cs]);
           }}
           className="w-full max-w-sm"
         />
@@ -164,7 +165,7 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
             return (
               <Column key={col.status} col={col} items={items} today={today} onOpen={open} onAdd={async (t) => {
                 const row = await createProject(t, col.status, typeFilter === "learn" ? "learn" : "build");
-                if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0 }, ...cs]);
+                if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0, minutesLogged: 0 }, ...cs]);
               }} />
             );
           })}
@@ -291,8 +292,9 @@ function CardBody({ card, today, lifted }: { card: ProjectCard; today: string; l
           <span className="text-[11px] tabular-nums text-muted">{card.progress}%</span>
         </div>
       )}
-      {(card.logCount > 0 || card.openTodos > 0 || card.targetDate) && (
+      {(card.minutesLogged > 0 || card.logCount > 0 || card.openTodos > 0 || card.targetDate) && (
         <p className="mt-2 flex flex-wrap gap-x-2.5 text-[11px] text-muted">
+          {card.minutesLogged > 0 && <span title="Time logged under Projects">{fmtHours(card.minutesLogged)}</span>}
           {card.logCount > 0 && <span title={`Last entry ${lastLog}`}>{card.logCount} log{card.logCount === 1 ? "" : "s"}{lastLog === today ? " · today" : ""}</span>}
           {card.openTodos > 0 && <span>{card.openTodos} to-do{card.openTodos === 1 ? "" : "s"}</span>}
           {card.targetDate && <span className={overdue ? "font-semibold text-warn" : ""}>{overdue ? "overdue " : "→ "}{card.targetDate.slice(5)}</span>}

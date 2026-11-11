@@ -1,5 +1,5 @@
 import { DayView } from "@/components/day-view";
-import { getCategories, getDay, getLoggedMinutesByDay, getToday } from "@/lib/data";
+import { getCategories, getDay, getLoggedMinutesByDay, getProjectOptions, getToday } from "@/lib/data";
 import { addDays, isValidDay, nowMinuteIn } from "@/lib/time";
 
 export default async function DayPage({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
@@ -8,10 +8,11 @@ export default async function DayPage({ searchParams }: { searchParams: Promise<
   const day = isValidDay(d) ? d : today;
   const weekFrom = addDays(day, -6);
 
-  const [categories, { logs, reflection }, weekMap] = await Promise.all([
+  const [categories, { logs, reflection }, weekMap, projects] = await Promise.all([
     getCategories(true),
     getDay(day),
     getLoggedMinutesByDay(weekFrom, day),
+    getProjectOptions(),
   ]);
   const week = Array.from({ length: 7 }, (_, i) => {
     const wd = addDays(weekFrom, i);
@@ -26,6 +27,7 @@ export default async function DayPage({ searchParams }: { searchParams: Promise<
       nowMinute={day === today ? nowMinuteIn(settings.timezone) : null}
       settings={settings}
       categories={categories}
+      projects={projects}
       initialLogs={logs}
       reflection={reflection}
       week={week}
