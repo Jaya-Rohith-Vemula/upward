@@ -82,7 +82,7 @@ export function ProjectModal({
       aria-label={p?.title ?? "Project"}
     >
       <div className="flex h-full flex-col">
-        <div className="pt-safe flex items-center justify-between gap-3 border-b border-rule px-3 md:px-8 md:py-3">
+        <div className="flex items-center justify-between gap-3 border-b border-rule px-3 pt-[env(safe-area-inset-top)] md:px-8 md:py-3">
           <p className="eyebrow">Project</p>
           <div className="flex items-center gap-1">
             {p && (
