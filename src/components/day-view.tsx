@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Category, Reflection, Settings, TimeLog } from "@/db/schema";
 import { deleteLog, saveLog, saveReflection } from "@/app/actions";
-import { addDays, fmtDuration, fmtHourShort, fmtHours, fmtMinute, prettyDay, weekdayName } from "@/lib/time";
+import { addDays, nowMinuteExactIn, todayIn, fmtDuration, fmtHourShort, fmtHours, fmtMinute, prettyDay, weekdayName } from "@/lib/time";
 import { Scale } from "./scale";
 import { DatePicker, Select, useIsMobile } from "./ui";
 import { createPortal } from "react-dom";
@@ -32,7 +32,7 @@ const endOf = (l: TimeLog) => l.startMinute + l.durationMinutes;
 const draftOf = (l: TimeLog): Draft => ({ activity: l.activity, categoryId: l.categoryId, focus: l.focus, energy: l.energy, notes: l.notes });
 const byStart = (a: TimeLog, b: TimeLog) => a.startMinute - b.startMinute;
 
-export function DayView({ day, today, nowMinute, settings, categories, initialLogs, reflection, week }: Props) {
+export function DayView({ day, today, nowMinute: initialNowMinute, settings, categories, initialLogs, reflection, week }: Props) {
   const [logs, setLogs] = useState(() => [...initialLogs].sort(byStart));
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +41,20 @@ export function DayView({ day, today, nowMinute, settings, categories, initialLo
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const activeCats = categories.filter((c) => !c.archived);
   const snap = settings.slotMinutes;
+
+  // Keep the "now" line live: re-read the clock every second while viewing today.
+  const [nowMinute, setNowMinute] = useState(initialNowMinute);
+  const isToday = initialNowMinute != null;
+  useEffect(() => {
+    if (!isToday) return;
+    const tick = () => {
+      const d = new Date();
+      setNowMinute(todayIn(settings.timezone, d) === day ? nowMinuteExactIn(settings.timezone, d) : null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [day, isToday, settings.timezone]);
 
   const dayStart = settings.dayStartHour * 60;
   const dayEnd = settings.dayEndHour * 60;

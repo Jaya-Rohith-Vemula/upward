@@ -11,6 +11,11 @@ export function nowMinuteIn(tz: string, d = new Date()): number {
   return h * 60 + m;
 }
 
+/** Like nowMinuteIn but fractional (includes seconds), for a smoothly moving "now" line. */
+export function nowMinuteExactIn(tz: string, d = new Date()): number {
+  return nowMinuteIn(tz, d) + d.getSeconds() / 60 + d.getMilliseconds() / 60000;
+}
+
 export function addDays(day: string, n: number): string {
   const d = new Date(day + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
