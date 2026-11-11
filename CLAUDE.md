@@ -1,6 +1,6 @@
 # Upward
 
-Personal life ledger: calendar-style time logs (15-min grid), projects (build/learn Kanban, each with a dated log + notes in BlockNote), to-dos, daily reflections. Next.js 15 App Router + Drizzle + Neon Postgres. Deployed on Vercel at https://upward.jayass.app, password-gated by `APP_PASSWORD`.
+Personal life ledger: calendar-style time logs (15-min grid), projects (build/learn Kanban, each with a dated log + notes in BlockNote), to-dos, daily reflections. Next.js 15 App Router + Drizzle + Neon Postgres. Deployed on Vercel at https://upward.jayas.app, password-gated by `APP_PASSWORD`.
 
 ## Layout
 - `src/db/schema.ts` – tables: settings, categories (kind = productive|neutral|rest|drain), time_logs, reflections, projects, project_logs, todos

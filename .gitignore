@@ -7,3 +7,5 @@ reports/*.md
 next-env.d.ts
 *.tsbuildinfo
 .next-test
+.vercel
+.neon
