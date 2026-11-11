@@ -33,10 +33,18 @@ export function slotStarts(slotMinutes: number, startHour: number, endHour: numb
   return out;
 }
 
+/** 12-hour clock, e.g. 540 → "9:00 AM", 1440 → "12:00 AM". */
 export function fmtMinute(m: number): string {
   const h = Math.floor(m / 60) % 24;
   const mm = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  return `${h % 12 || 12}:${String(mm).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** Compact 12-hour label for axes, e.g. 540 → "9 AM", 570 → "9:30 AM". */
+export function fmtHourShort(m: number): string {
+  const h = Math.floor(m / 60) % 24;
+  const mm = m % 60;
+  return `${h % 12 || 12}${mm ? `:${String(mm).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
 }
 
 export function fmtHours(minutes: number): string {

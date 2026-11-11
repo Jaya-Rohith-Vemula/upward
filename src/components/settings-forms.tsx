@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtMinute } from "@/lib/time";
 import { useEffect, useState, useTransition } from "react";
 import type { Category, Settings } from "@/db/schema";
 import { saveSettings, upsertCategory } from "@/app/actions";
@@ -62,7 +63,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             value={s.dayStartHour}
             width={170}
             onChange={(v) => setS({ ...s, dayStartHour: v })}
-            options={Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String(h).padStart(2, "0")}:00` }))}
+            options={Array.from({ length: 24 }, (_, h) => ({ value: h, label: fmtMinute(h * 60) }))}
             className="rounded-md border border-rule-strong px-3 tabular-nums"
           />
           <span className="text-muted">to</span>
@@ -71,7 +72,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             value={s.dayEndHour}
             width={190}
             onChange={(v) => setS({ ...s, dayEndHour: v })}
-            options={Array.from({ length: 24 }, (_, i) => i + 1).map((h) => ({ value: h, label: h === 24 ? "24:00 (midnight)" : `${String(h).padStart(2, "0")}:00` }))}
+            options={Array.from({ length: 24 }, (_, i) => i + 1).map((h) => ({ value: h, label: h === 24 ? "12:00 AM (midnight)" : fmtMinute(h * 60) }))}
             className="rounded-md border border-rule-strong px-3 tabular-nums"
           />
         </div>

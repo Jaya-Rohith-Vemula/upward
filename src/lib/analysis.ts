@@ -308,7 +308,7 @@ export function toMarkdown(a: Analysis): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const L: string[] = [];
   L.push(`# Upward report: ${a.range.from} → ${a.range.to}`, "");
-  L.push(`Grid: ${a.settings.slotMinutes} min · Day window: ${a.settings.dayStartHour}:00–${a.settings.dayEndHour}:00`, "");
+  L.push(`Grid: ${a.settings.slotMinutes} min · Day window: ${fmtMinute(a.settings.dayStartHour * 60)}–${fmtMinute(a.settings.dayEndHour * 60)}`, "");
   L.push("## Overview", "");
   L.push(`- Days: ${a.range.days} (${a.range.loggedDays} with logs) · logging streak now ${a.streak.current}, longest ${a.streak.longest}`);
   L.push(`- Logged: ${fmtHours(a.coverage.loggedMinutes)} of ${fmtHours(a.coverage.trackableMinutes)} trackable (${pct(a.coverage.pct)})`);

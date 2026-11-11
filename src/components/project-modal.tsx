@@ -342,7 +342,7 @@ function LogEntry({ log, onUpdated, onDeleted }: { log: ProjectLog; onUpdated: (
   const confirm = useConfirm();
   const [draft, setDraft] = useState<{ blocks: unknown[]; md: string } | null>(null);
   const [v, setV] = useState(0);
-  const time = new Date(log.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const time = new Date(log.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const hasDoc = Array.isArray(log.content) && log.content.length > 0;
   return (
     <li className="group">

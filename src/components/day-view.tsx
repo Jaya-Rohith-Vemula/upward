@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Category, Reflection, Settings, TimeLog } from "@/db/schema";
 import { deleteLog, saveLog, saveReflection } from "@/app/actions";
-import { addDays, fmtDuration, fmtHours, fmtMinute, prettyDay, weekdayName } from "@/lib/time";
+import { addDays, fmtDuration, fmtHourShort, fmtHours, fmtMinute, prettyDay, weekdayName } from "@/lib/time";
 import { Scale } from "./scale";
 import { DatePicker, Select, useIsMobile } from "./ui";
 import { createPortal } from "react-dom";
@@ -287,7 +287,7 @@ function Ribbon({ logs, catById, from, to, nowMinute }: { logs: TimeLog[]; catBy
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-muted">
         {Array.from({ length: 5 }, (_, i) => from + Math.round((span * i) / 4)).map((m) => (
-          <span key={m}>{fmtMinute(m)}</span>
+          <span key={m}>{fmtHourShort(m)}</span>
         ))}
       </div>
     </div>
@@ -511,7 +511,7 @@ function Calendar(p: {
       <div className="relative" style={{ height }}>
         {hours.map((m) => (
           <span key={m} className="absolute right-3 -translate-y-1/2 text-[11px] tabular-nums text-muted" style={{ top: top(m) }}>
-            {m < 1440 ? fmtMinute(m) : "24:00"}
+            {fmtHourShort(m)}
           </span>
         ))}
       </div>
@@ -778,7 +778,7 @@ function TimeSelect({ label, value, options, onChange }: { label: string; value:
       value={value}
       width={160}
       onChange={onChange}
-      options={opts.map((m) => ({ value: m, label: m >= 1440 ? "24:00" : fmtMinute(m) }))}
+      options={opts.map((m) => ({ value: m, label: m >= 1440 ? "12:00 AM (midnight)" : fmtMinute(m) }))}
       className="rounded-md border border-rule-strong px-2.5 tabular-nums hover:border-ink-2"
     />
   );

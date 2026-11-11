@@ -144,7 +144,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               unit="hour"
               columns={a.byHour.map((h) => ({
                 key: String(h.hour),
-                label: String(h.hour).padStart(2, "0"),
+                label: `${h.hour % 12 || 12}${h.hour < 12 ? "a" : "p"}`,
                 title: `${h.label}${h.topCategory ? ` · usually ${h.topCategory}` : ""}`,
                 kinds: h.kinds,
                 foot: h.avgFocus != null ? String(h.avgFocus) : "",
