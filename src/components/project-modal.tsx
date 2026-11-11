@@ -17,7 +17,7 @@ import {
 } from "@/app/actions";
 import { PRIORITY_OPTIONS, STATUS_OPTIONS, SelectProp, TYPE_OPTIONS, TagsProp } from "./props";
 import { TodoCheck } from "./todo-check";
-import { DatePicker, Slider, Switch, useConfirm } from "./ui";
+import { DatePicker, Select, Slider, Switch, useConfirm } from "./ui";
 
 const RichEditor = dynamic(() => import("./rich-editor"), {
   ssr: false,
@@ -26,11 +26,15 @@ const RichEditor = dynamic(() => import("./rich-editor"), {
 
 type Detail = { project: Project; logs: ProjectLog[]; todos: Todo[] };
 type Tab = "log" | "notes" | "todos";
+type ProjectOpt = { id: number; title: string; status: string };
+type TodoPatch = Parameters<typeof updateTodo>[1];
 
 export function ProjectModal({
   id,
   allTags,
   today,
+  projects,
+  onTodoMoved,
   onClose,
   onChange,
   onDeleted,
@@ -38,6 +42,8 @@ export function ProjectModal({
   id: number;
   allTags: string[];
   today: string;
+  projects: ProjectOpt[];
+  onTodoMoved: (toProjectId: number | null, open: boolean) => void;
   onClose: () => void;
   onChange: (patch: Partial<Project> & { logCount?: number; lastLogAt?: string | null; openTodos?: number }) => void;
   onDeleted: () => void;
@@ -75,7 +81,7 @@ export function ProjectModal({
       onCancel={(e) => {
         // Esc inside the editor or an open menu shouldn't close the whole project.
         const a = document.activeElement;
-        if (a?.closest(".bn-editor, .bn-container") || document.querySelector("[data-popover-open]")) e.preventDefault();
+        if (a?.closest(".bn-editor, .bn-container, [data-esc-local]") || document.querySelector("[data-popover-open]")) e.preventDefault();
       }}
       onClick={(e) => e.target === ref.current && ref.current?.close()}
       className="upward-dialog m-0 h-dvh outline-none max-h-none w-full max-w-none overscroll-contain bg-paper p-0 text-ink md:m-auto md:h-[min(90dvh,960px)] md:max-w-3xl md:rounded-xl md:border md:border-rule"
@@ -193,6 +199,8 @@ export function ProjectModal({
                     projectId={id}
                     todos={d.todos}
                     today={today}
+                    projects={projects}
+                    onMoved={onTodoMoved}
                     setTodos={(todos) => {
                       setD({ ...d, todos });
                       onChange({ openTodos: todos.filter((t) => !t.done).length });
@@ -447,7 +455,21 @@ function NotesTab({ project, onSaved }: { project: Project; onSaved: (notes: unk
 
 // ───────── To-dos linked to the project
 
-function TodosTab({ projectId, todos, today, setTodos }: { projectId: number; todos: Todo[]; today: string; setTodos: (t: Todo[]) => void }) {
+function TodosTab({
+  projectId,
+  todos,
+  today,
+  projects,
+  onMoved,
+  setTodos,
+}: {
+  projectId: number;
+  todos: Todo[];
+  today: string;
+  projects: ProjectOpt[];
+  onMoved: (toProjectId: number | null, open: boolean) => void;
+  setTodos: (t: Todo[]) => void;
+}) {
   const [v, setV] = useState("");
   const [due, setDue] = useState("");
   return (
@@ -469,30 +491,138 @@ function TodosTab({ projectId, todos, today, setTodos }: { projectId: number; to
       </form>
       <ul className="mt-4">
         {todos.map((t) => (
-          <li key={t.id} className="group flex items-center gap-3 border-b border-rule py-2.5">
-            <TodoCheck
-              done={t.done}
-              onToggle={() => {
-                setTodos(todos.map((x) => (x.id === t.id ? { ...x, done: !t.done } : x)));
-                void updateTodo(t.id, { done: !t.done });
-              }}
-            />
-            <span className={`flex-1 text-[0.9375rem] ${t.done ? "text-muted line-through decoration-rule-strong" : ""}`}>{t.title}</span>
-            {t.dueDate && <span className={`text-xs tabular-nums ${!t.done && t.dueDate < today ? "font-semibold text-warn" : "text-muted"}`}>{t.dueDate.slice(5)}</span>}
-            <button
-              className="grid min-h-9 min-w-9 place-items-center text-xs text-muted opacity-100 hover:text-warn md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => {
+          <ProjectTodoRow
+            key={t.id}
+            todo={t}
+            today={today}
+            projects={projects}
+            onPatch={(p) => {
+              void updateTodo(t.id, p);
+              if (p.projectId !== undefined && p.projectId !== projectId) {
+                // Moved to another project (or none): it no longer belongs in this list.
                 setTodos(todos.filter((x) => x.id !== t.id));
-                void deleteTodo(t.id);
-              }}
-              aria-label={`Delete ${t.title}`}
-            >
-              ✕
-            </button>
-          </li>
+                onMoved(p.projectId, !t.done);
+                return;
+              }
+              setTodos(todos.map((x) => (x.id === t.id ? { ...x, ...p } : x)));
+            }}
+            onRemove={() => {
+              setTodos(todos.filter((x) => x.id !== t.id));
+              void deleteTodo(t.id);
+            }}
+          />
         ))}
         {todos.length === 0 && <li className="py-3 text-sm text-muted">No to-dos linked to this project. They&apos;ll also show on the To-dos page.</li>}
       </ul>
     </div>
+  );
+}
+
+function ProjectTodoRow({
+  todo: t,
+  today,
+  projects,
+  onPatch,
+  onRemove,
+}: {
+  todo: Todo;
+  today: string;
+  projects: ProjectOpt[];
+  onPatch: (p: TodoPatch) => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(t.title);
+  const [more, setMore] = useState(false);
+  const overdue = !t.done && !!t.dueDate && t.dueDate < today;
+  const commit = () => {
+    setEditing(false);
+    const next = title.trim();
+    if (next && next !== t.title) onPatch({ title: next });
+    else setTitle(t.title);
+  };
+
+  return (
+    <li className="group border-b border-rule py-2.5">
+      <div className="flex items-center gap-3">
+        <TodoCheck done={t.done} onToggle={() => onPatch({ done: !t.done })} />
+        {editing ? (
+          <input
+            data-esc-local
+            autoFocus
+            className="field min-w-0 flex-1 py-0 text-[0.9375rem]"
+            value={title}
+            maxLength={500}
+            aria-label="To-do title"
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") {
+                setTitle(t.title);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            title="Click to edit"
+            className={`min-w-0 flex-1 text-left text-[0.9375rem] ${t.done ? "text-muted line-through decoration-rule-strong" : ""}`}
+          >
+            {t.priority === "high" && !t.done && <span className="mr-1.5 text-xs font-bold text-warn">!!</span>}
+            {t.title}
+          </button>
+        )}
+        <DatePicker
+          value={t.dueDate}
+          onChange={(d) => onPatch({ dueDate: d })}
+          today={today}
+          label="Due date"
+          placeholder="Due"
+          tone={overdue ? "warn" : undefined}
+          className={`shrink-0 rounded-full px-2 text-xs tabular-nums hover:bg-paper-2 ${overdue ? "font-semibold" : "text-muted"} ${t.dueDate ? "" : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"}`}
+        />
+        <button
+          onClick={() => setMore(!more)}
+          aria-expanded={more}
+          aria-label="More options"
+          className={`grid min-h-9 min-w-9 place-items-center rounded text-muted transition-opacity hover:bg-paper-2 hover:text-ink ${more ? "" : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"}`}
+        >
+          ⋯
+        </button>
+      </div>
+      {more && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-8 text-xs">
+          <Select
+            label="Priority"
+            value={t.priority}
+            onChange={(v) => onPatch({ priority: v })}
+            width={180}
+            options={[
+              { value: "high", label: "High", color: "#e34948" },
+              { value: "medium", label: "Medium", color: "#eda100" },
+              { value: "low", label: "Low", color: "#9a948a" },
+            ]}
+            className="rounded-full bg-paper-2 px-3"
+          />
+          <Select
+            label="Project"
+            value={t.projectId}
+            onChange={(v) => onPatch({ projectId: v })}
+            options={[
+              { value: null, label: "No project" },
+              ...projects
+                .filter((p) => p.id === t.projectId || (p.status !== "done" && p.status !== "dropped"))
+                .map((p) => ({ value: p.id as number | null, label: p.title })),
+            ]}
+            className="max-w-56 rounded-full bg-paper-2 px-3"
+          />
+          <button className="ml-auto min-h-9 rounded px-3 text-warn hover:bg-warn-soft" onClick={onRemove}>
+            Delete
+          </button>
+        </div>
+      )}
+    </li>
   );
 }
