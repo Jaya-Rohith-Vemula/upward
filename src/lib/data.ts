@@ -49,7 +49,7 @@ export type ProjectCard = Awaited<ReturnType<typeof getProjects>>[number];
 export async function getProjects() {
   const db = await getDb();
   const p = schema.projects;
-  const [rows, logStats, todoStats] = await Promise.all([
+  const [rows, logStats, todoStats, timeStats] = await Promise.all([
     db
       .select({
         id: p.id, title: p.title, status: p.status, type: p.type, priority: p.priority, tags: p.tags,
@@ -69,14 +69,21 @@ export async function getProjects() {
       .select({ projectId: schema.todos.projectId, open: sql<number>`count(*) filter (where not ${schema.todos.done})::int` })
       .from(schema.todos)
       .groupBy(schema.todos.projectId),
+    db
+      .select({ projectId: schema.timeLogs.projectId, minutes: sql<number>`sum(${schema.timeLogs.durationMinutes})::int` })
+      .from(schema.timeLogs)
+      .where(sql`${schema.timeLogs.projectId} is not null`)
+      .groupBy(schema.timeLogs.projectId),
   ]);
   const ls = new Map(logStats.map((l) => [l.projectId, l]));
   const ts = new Map(todoStats.map((t) => [t.projectId, t.open]));
+  const ms = new Map(timeStats.map((t) => [t.projectId, Number(t.minutes)]));
   return rows.map((r) => ({
     ...r,
     logCount: Number(ls.get(r.id)?.count ?? 0),
     lastLogAt: ls.get(r.id)?.last ? new Date(ls.get(r.id)!.last).toISOString() : null,
     openTodos: Number(ts.get(r.id) ?? 0),
+    minutesLogged: ms.get(r.id) ?? 0,
   }));
 }
 

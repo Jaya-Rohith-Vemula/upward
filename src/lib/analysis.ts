@@ -176,6 +176,8 @@ async function summarize(db: DB, from: string, to: string) {
   };
 
   // ---- projects (+ their journal)
+  const minutesByProject = new Map<number, number>();
+  for (const l of logs) if (l.projectId != null) minutesByProject.set(l.projectId, (minutesByProject.get(l.projectId) ?? 0) + l.durationMinutes);
   const projectStats = allProjects.map((p) => {
     const pl = plogs.filter((l) => l.projectId === p.id);
     const before = pl.filter((l) => l.progress != null && new Date(l.createdAt).toISOString().slice(0, 10) < from).at(-1);
@@ -193,6 +195,7 @@ async function summarize(db: DB, from: string, to: string) {
       tags: p.tags,
       progress: p.progress,
       progressDelta: (endProgress ?? 0) - (startProgress ?? 0),
+      minutesInRange: minutesByProject.get(p.id) ?? 0,
       logsInRange: within.length,
       entries: within.map((l) => ({ at: new Date(l.createdAt).toISOString().slice(0, 10), text: l.text, progress: l.progress })),
       lastLog: last ? new Date(last.createdAt).toISOString().slice(0, 10) : null,
@@ -246,6 +249,10 @@ async function summarize(db: DB, from: string, to: string) {
     bestDay: bestDay && { day: bestDay.day, productiveMinutes: bestDay.kinds.productive },
     worstDay: worstDay && worstDay.kinds.drain > 0 ? { day: worstDay.day, drainMinutes: worstDay.kinds.drain } : null,
     projects: projectStats,
+    projectTime: projectStats
+      .filter((p) => p.minutesInRange > 0)
+      .map((p) => ({ id: p.id, title: p.title, minutes: p.minutesInRange }))
+      .sort((a, b) => b.minutes - a.minutes),
     projectsByStatus,
     todos: todoSummary,
     reflections: refl.map((r) => ({ day: r.day, mood: r.mood, wins: r.wins, blockers: r.blockers, tomorrow: r.tomorrow })),
@@ -286,8 +293,13 @@ function observe(s: Summary): string[] {
   if (wd.length >= 3) out.push(`Strongest weekday: ${wd[0].weekday}; weakest: ${wd.at(-1)!.weekday}.`);
 
   const active = s.projects.filter((p) => p.status === "active");
-  const stalled = active.filter((p) => p.logsInRange === 0);
-  if (stalled.length) out.push(`No log entries on in-progress: ${stalled.map((p) => p.title).join(", ")}. Pause them or schedule a slot.`);
+  const stalled = active.filter((p) => p.logsInRange === 0 && p.minutesInRange === 0);
+  if (s.projectTime.length) {
+    const total = s.projectTime.reduce((t, p) => t + p.minutes, 0);
+    const top = s.projectTime[0];
+    out.push(`${fmtHours(total)} tagged to projects; ${top.title} got the most (${fmtHours(top.minutes)}, ${pct(top.minutes / total)}).`);
+  }
+  if (stalled.length) out.push(`No time or log entries on in-progress: ${stalled.map((p) => p.title).join(", ")}. Pause them or schedule a slot.`);
   if (active.length > 3) out.push(`${active.length} projects in progress at once. Finishing beats starting, so consider pausing some.`);
   const overdue = s.projects.filter((p) => p.overdue);
   if (overdue.length) out.push(`Past target date: ${overdue.map((p) => p.title).join(", ")}.`);
@@ -330,12 +342,17 @@ export function toMarkdown(a: Analysis): string {
   }
   L.push("", "## Projects", "");
   L.push(`Status: ${Object.entries(a.projectsByStatus).map(([k, v]) => `${k} ${v}`).join(", ") || "–"}`, "");
-  const relevant = a.projects.filter((p) => p.status === "active" || p.logsInRange || p.createdInRange || p.doneInRange || p.overdue);
+  if (a.projectTime.length) {
+    L.push("| Project | Time logged |", "|---|---|");
+    for (const p of a.projectTime) L.push(`| ${p.title} | ${fmtHours(p.minutes)} |`);
+    L.push("");
+  }
+  const relevant = a.projects.filter((p) => p.status === "active" || p.minutesInRange || p.logsInRange || p.createdInRange || p.doneInRange || p.overdue);
   if (!relevant.length) L.push("_no project activity in range_");
   for (const p of relevant) {
     L.push(
       `### ${p.title} (${p.type}, ${p.status}, ${p.priority}) ${p.progress}%` +
-        ` · Δ ${p.progressDelta >= 0 ? "+" : ""}${p.progressDelta} · ${p.logsInRange} log entries` +
+        ` · Δ ${p.progressDelta >= 0 ? "+" : ""}${p.progressDelta} · ${fmtHours(p.minutesInRange)} logged · ${p.logsInRange} log entries` +
         `${p.targetDate ? ` · target ${p.targetDate}${p.overdue ? " (OVERDUE)" : ""}` : ""}` +
         `${p.createdInRange ? " · NEW" : ""}${p.doneInRange ? " · FINISHED" : ""}`,
     );

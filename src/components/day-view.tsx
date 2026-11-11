@@ -9,6 +9,7 @@ import { addDays, nowMinuteExactIn, todayIn, fmtDuration, fmtHourShort, fmtHours
 import { Scale } from "./scale";
 import { DatePicker, Select, useIsMobile } from "./ui";
 import { createPortal } from "react-dom";
+import { isProjectsCategory } from "@/lib/categories";
 
 /** Pixels per minute on the calendar grid (1 hour = 72px, 15 min = 18px). */
 const PPM = 1.2;
@@ -19,26 +20,29 @@ type Props = {
   nowMinute: number | null;
   settings: Settings;
   categories: Category[];
+  projects: ProjectOption[];
   initialLogs: TimeLog[];
   reflection: Reflection | null;
   week: { day: string; minutes: number }[];
 };
 
+type ProjectOption = { id: number; title: string; status: string };
 type Range = { start: number; end: number };
-type Draft = Pick<TimeLog, "activity" | "categoryId" | "focus" | "energy" | "notes">;
+type Draft = Pick<TimeLog, "activity" | "categoryId" | "projectId" | "focus" | "energy" | "notes">;
 type Editing = { range: Range; log: TimeLog | null } | null;
 
 const endOf = (l: TimeLog) => l.startMinute + l.durationMinutes;
-const draftOf = (l: TimeLog): Draft => ({ activity: l.activity, categoryId: l.categoryId, focus: l.focus, energy: l.energy, notes: l.notes });
+const draftOf = (l: TimeLog): Draft => ({ activity: l.activity, categoryId: l.categoryId, projectId: l.projectId ?? null, focus: l.focus, energy: l.energy, notes: l.notes });
 const byStart = (a: TimeLog, b: TimeLog) => a.startMinute - b.startMinute;
 
-export function DayView({ day, today, nowMinute: initialNowMinute, settings, categories, initialLogs, reflection, week }: Props) {
+export function DayView({ day, today, nowMinute: initialNowMinute, settings, categories, projects, initialLogs, reflection, week }: Props) {
   const [logs, setLogs] = useState(() => [...initialLogs].sort(byStart));
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const mobile = useIsMobile();
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const activeCats = categories.filter((c) => !c.archived);
   const snap = settings.slotMinutes;
 
@@ -170,6 +174,7 @@ export function DayView({ day, today, nowMinute: initialNowMinute, settings, cat
         <Calendar
           logs={logs}
           catById={catById}
+          projectById={projectById}
           gridStart={gridStart}
           gridEnd={gridEnd}
           dayStart={dayStart}
@@ -204,6 +209,7 @@ export function DayView({ day, today, nowMinute: initialNowMinute, settings, cat
             editing={editing}
             logs={logs}
             categories={activeCats}
+            projects={projects}
             gridStart={gridStart}
             gridEnd={gridEnd}
             snap={snap}
@@ -220,6 +226,7 @@ export function DayView({ day, today, nowMinute: initialNowMinute, settings, cat
             editing={editing}
             logs={logs}
             categories={activeCats}
+            projects={projects}
             gridStart={gridStart}
             gridEnd={gridEnd}
             snap={snap}
@@ -325,6 +332,7 @@ type Drag = {
 function Calendar(p: {
   logs: TimeLog[];
   catById: Map<number, Category>;
+  projectById: Map<number, ProjectOption>;
   gridStart: number;
   gridEnd: number;
   dayStart: number;
@@ -569,6 +577,8 @@ function Calendar(p: {
           const e = live ? live.end : endOf(l);
           const h = (e - s) * PPM;
           const color = c?.color ?? "#9a948a";
+          const proj = l.projectId != null ? p.projectById.get(l.projectId) : undefined;
+          const catLabel = c ? (proj ? `${c.name} · ${proj.title}` : c.name) : "";
           const selected = p.editing?.log?.id === l.id;
           return (
             <div
@@ -577,7 +587,7 @@ function Calendar(p: {
               onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), p.onEdit(l))}
               tabIndex={0}
               role="button"
-              aria-label={`${fmtMinute(s)} to ${fmtMinute(e)}: ${l.activity || c?.name || "Uncategorized"}. Press Enter to edit.`}
+              aria-label={`${fmtMinute(s)} to ${fmtMinute(e)}: ${l.activity || catLabel || "Uncategorized"}${l.activity && proj ? ` (${proj.title})` : ""}. Press Enter to edit.`}
               className={`group absolute inset-x-1 overflow-hidden rounded-[5px] border px-2 text-ink transition-shadow ${
                 live?.moved ? "z-20 shadow-[0_10px_24px_-10px_rgb(0_0_0/0.45)]" : "z-10"
               } ${selected ? "ring-2 ring-ink ring-offset-1 ring-offset-paper" : ""}`}
@@ -595,11 +605,12 @@ function Calendar(p: {
               <div className={`flex min-w-0 gap-2 ${h < 44 ? "items-center" : "flex-col gap-0 pt-1"}`} style={{ lineHeight: h < 44 ? `${h - 4}px` : undefined }}>
                 <span className="truncate text-[13px] font-semibold">
                   <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: color }} />
-                  {l.activity || c?.name || "Uncategorized"}
+                  {l.activity || catLabel || "Uncategorized"}
+                  {h < 50 && l.activity && proj && <span className="ml-1.5 font-normal text-ink-2">· {proj.title}</span>}
                 </span>
                 <span className="truncate text-[11px] tabular-nums text-ink-2">
                   {fmtMinute(s)}–{fmtMinute(e)} · {fmtDuration(e - s)}
-                  {h >= 50 && l.activity && c ? ` · ${c.name}` : ""}
+                  {h >= 50 && l.activity && c ? ` · ${catLabel}` : ""}
                   {h >= 50 && (l.focus != null || l.energy != null) ? ` · F${l.focus ?? "–"} E${l.energy ?? "–"}` : ""}
                 </span>
               </div>
@@ -645,6 +656,7 @@ function Editor({
   editing,
   logs,
   categories,
+  projects,
   gridStart,
   gridEnd,
   snap,
@@ -655,6 +667,7 @@ function Editor({
   editing: NonNullable<Editing>;
   logs: TimeLog[];
   categories: Category[];
+  projects: ProjectOption[];
   gridStart: number;
   gridEnd: number;
   snap: number;
@@ -667,11 +680,19 @@ function Editor({
   const [d, setD] = useState<Draft>({
     activity: log?.activity ?? "",
     categoryId: log?.categoryId ?? null,
+    projectId: log?.projectId ?? null,
     focus: log?.focus ?? null,
     energy: log?.energy ?? null,
     notes: log?.notes ?? null,
   });
   const [showNotes, setShowNotes] = useState(!!log?.notes);
+  const isProjectCat = (id: number | null) => id != null && isProjectsCategory(categories.find((c) => c.id === id)?.name);
+  const showProjects = isProjectCat(d.categoryId);
+  // Live projects first (in progress, then up next), then the rest; finished/dropped only if already tagged.
+  const statusRank: Record<string, number> = { active: 0, next: 1, paused: 2, idea: 3 };
+  const projectChoices = projects
+    .filter((p) => p.id === d.projectId || (p.status !== "done" && p.status !== "dropped"))
+    .sort((a, b) => (statusRank[a.status] ?? 4) - (statusRank[b.status] ?? 4) || a.title.localeCompare(b.title));
 
   const others = logs.filter((l) => l.id !== log?.id);
   const clash = others.find((l) => l.startMinute < range.end && endOf(l) > range.start);
@@ -721,7 +742,7 @@ function Editor({
           <button
             type="button"
             className="mt-2 text-xs text-accent hover:underline"
-            onClick={() => setD({ activity: prev.activity, categoryId: prev.categoryId, focus: prev.focus, energy: prev.energy, notes: null })}
+            onClick={() => setD({ activity: prev.activity, categoryId: prev.categoryId, projectId: prev.projectId ?? null, focus: prev.focus, energy: prev.energy, notes: null })}
           >
             ↑ Same as before: {prev.activity || "previous entry"}
           </button>
@@ -738,7 +759,10 @@ function Editor({
                 key={c.id}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setD({ ...d, categoryId: on ? null : c.id })}
+                onClick={() => {
+                  const next = on ? null : c.id;
+                  setD({ ...d, categoryId: next, projectId: isProjectCat(next) ? d.projectId : null });
+                }}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   on ? "border-transparent text-paper" : "border-rule-strong text-ink-2 hover:border-ink-2"
                 }`}
@@ -751,6 +775,36 @@ function Editor({
           })}
         </div>
       </fieldset>
+
+      {showProjects && (
+        <fieldset className="-mt-2 border-l-2 border-rule pl-3">
+          <legend className="eyebrow mb-2">Project</legend>
+          {projectChoices.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {projectChoices.map((p) => {
+                const on = d.projectId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setD({ ...d, projectId: on ? null : p.id })}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                      on ? "border-transparent bg-ink text-paper" : "border-rule-strong text-ink-2 hover:border-ink-2"
+                    }`}
+                  >
+                    {p.title}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">
+              No projects yet. <Link href="/projects" className="underline underline-offset-4 hover:text-ink">Add one</Link> to tag time to it.
+            </p>
+          )}
+        </fieldset>
+      )}
 
       <div className="space-y-2">
         <Scale label="Focus" value={d.focus} onChange={(v) => setD({ ...d, focus: v })} />

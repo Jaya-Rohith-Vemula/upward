@@ -11,6 +11,7 @@ import {
   index,
   jsonb,
   doublePrecision,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 /** Single-row app settings (id = 1). */
@@ -48,6 +49,8 @@ export const timeLogs = pgTable(
     categoryId: integer("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
+    /** Which project the time went to (only set when the category is "Projects"). */
+    projectId: integer("project_id").references((): AnyPgColumn => projects.id, { onDelete: "set null" }),
     activity: text("activity").notNull().default(""),
     focus: smallint("focus"), // 1-5
     energy: smallint("energy"), // 1-5
@@ -55,7 +58,11 @@ export const timeLogs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("time_logs_day_start").on(t.day, t.startMinute), index("time_logs_day").on(t.day)],
+  (t) => [
+    uniqueIndex("time_logs_day_start").on(t.day, t.startMinute),
+    index("time_logs_day").on(t.day),
+    index("time_logs_project").on(t.projectId),
+  ],
 );
 
 /** End-of-day reflection. */

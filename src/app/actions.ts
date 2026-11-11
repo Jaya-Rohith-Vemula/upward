@@ -8,6 +8,7 @@ import { PRIORITY, PROJECT_STATUS, PROJECT_TYPE } from "@/db/schema";
 import { getDb, schema } from "@/db";
 import { SESSION_COOKIE, safeEqual, sessionToken } from "@/lib/auth";
 import { isValidDay } from "@/lib/time";
+import { isProjectsCategory } from "@/lib/categories";
 
 const { timeLogs, reflections, projects, projectLogs, todos, settings, categories } = schema;
 
@@ -51,6 +52,7 @@ export type LogInput = {
   startMinute: number;
   durationMinutes: number;
   categoryId: number | null;
+  projectId?: number | null;
   activity: string;
   focus: number | null;
   energy: number | null;
@@ -69,12 +71,18 @@ export async function saveLog(input: LogInput): Promise<SaveLogResult> {
     startMinute: start,
     durationMinutes: dur,
     categoryId: input.categoryId ?? null,
+    projectId: null as number | null,
     activity: str(input.activity, 300),
     focus: clampScore(input.focus),
     energy: clampScore(input.energy),
     notes: str(input.notes) || null,
   };
   const db = await getDb();
+  // A project tag only makes sense under the "Projects" category.
+  if (values.categoryId != null && input.projectId != null) {
+    const [cat] = await db.select({ name: categories.name }).from(categories).where(eq(categories.id, values.categoryId));
+    if (cat && isProjectsCategory(cat.name)) values.projectId = Math.trunc(input.projectId);
+  }
   const clash = await db
     .select({ id: timeLogs.id, start: timeLogs.startMinute, activity: timeLogs.activity })
     .from(timeLogs)
