@@ -199,6 +199,8 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
           id={openId}
           allTags={allTags}
           today={today}
+          projects={cards.map((c) => ({ id: c.id, title: c.title, status: c.status }))}
+          onTodoMoved={(toId, open) => open && toId != null && setCards((cs) => cs.map((c) => (c.id === toId ? { ...c, openTodos: (c.openTodos ?? 0) + 1 } : c)))}
           onClose={() => open(null)}
           onChange={(patch) => setCards((cs) => cs.map((c) => (c.id === openId ? { ...c, ...patch } : c)))}
           onDeleted={() => {
