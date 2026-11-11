@@ -159,6 +159,7 @@ export async function createProject(raw: string, status: ProjectStatus = "idea",
     })
     .returning();
   revalidatePath("/projects");
+  revalidatePath("/learnings");
   return row;
 }
 
@@ -197,12 +198,14 @@ export async function updateProject(id: number, patch: ProjectPatch) {
   const db = await getDb();
   await db.update(projects).set({ ...set, updatedAt: new Date() }).where(eq(projects.id, id));
   revalidatePath("/projects");
+  revalidatePath("/learnings");
 }
 
 export async function deleteProject(id: number) {
   const db = await getDb();
   await db.delete(projects).where(eq(projects.id, id));
   revalidatePath("/projects");
+  revalidatePath("/learnings");
 }
 
 export async function getProjectDetail(id: number) {
@@ -227,6 +230,7 @@ export async function addProjectLog(projectId: number, content: unknown, text: s
     .set({ updatedAt: new Date(), ...(p != null ? { progress: p } : {}) })
     .where(eq(projects.id, projectId));
   revalidatePath("/projects");
+  revalidatePath("/learnings");
   return row;
 }
 
@@ -244,6 +248,7 @@ export async function deleteProjectLog(id: number) {
   const db = await getDb();
   await db.delete(projectLogs).where(eq(projectLogs.id, id));
   revalidatePath("/projects");
+  revalidatePath("/learnings");
 }
 
 // ───────── todos
@@ -264,6 +269,7 @@ export async function addTodo(input: { title: string; dueDate?: string | null; p
     .returning();
   revalidatePath("/todos");
   revalidatePath("/projects");
+  revalidatePath("/learnings");
   return row;
 }
 
@@ -286,6 +292,7 @@ export async function updateTodo(
   await db.update(todos).set(set).where(eq(todos.id, id));
   revalidatePath("/todos");
   revalidatePath("/projects");
+  revalidatePath("/learnings");
 }
 
 export async function deleteTodo(id: number) {
@@ -293,6 +300,7 @@ export async function deleteTodo(id: number) {
   await db.delete(todos).where(eq(todos.id, id));
   revalidatePath("/todos");
   revalidatePath("/projects");
+  revalidatePath("/learnings");
 }
 
 // ───────── settings & categories

@@ -19,28 +19,33 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import type { ProjectCard } from "@/lib/data";
 import { createProject, updateProject } from "@/app/actions";
-import { Pill, STATUS_OPTIONS, TYPE_OPTIONS, tagColor } from "./props";
+import { Pill, STATUS_OPTIONS, tagColor } from "./props";
 import { ProjectModal } from "./project-modal";
 import { fmtHours } from "@/lib/time";
 
 type Status = ProjectCard["status"];
-const COLUMNS: { status: Status; label: string; hint: string }[] = [
-  { status: "idea", label: "Ideas", hint: "Anything you might build or learn." },
-  { status: "next", label: "Up next", hint: "Drag here what's worth starting soon." },
-  { status: "active", label: "In progress", hint: "Keep this short. Two or three at most." },
-  { status: "paused", label: "Paused", hint: "Parked on purpose." },
-  { status: "done", label: "Done", hint: "Shipped or learned." },
+type BoardType = ProjectCard["type"];
+const COLUMNS: { status: Status; label: string; hint: Record<BoardType, string> }[] = [
+  { status: "idea", label: "Ideas", hint: { build: "Anything you might build.", learn: "Anything you might learn." } },
+  { status: "next", label: "Up next", hint: { build: "Drag here what's worth starting soon.", learn: "Drag here what's worth starting soon." } },
+  { status: "active", label: "In progress", hint: { build: "Keep this short. Two or three at most.", learn: "Keep this short. Two or three at most." } },
+  { status: "paused", label: "Paused", hint: { build: "Parked on purpose.", learn: "Parked on purpose." } },
+  { status: "done", label: "Done", hint: { build: "Shipped.", learn: "Learned." } },
 ];
+const COPY: Record<BoardType, { eyebrow: string; title: string }> = {
+  build: { eyebrow: "What you\u2019re building", title: "Projects" },
+  learn: { eyebrow: "What you\u2019re learning", title: "Learnings" },
+};
 const STATUS_COLOR = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.color])) as Record<Status, string>;
 
 const cid = (id: number) => `p-${id}`;
 const pid = (s: string | number) => Number(String(s).slice(2));
 
-export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; today: string }) {
+export function ProjectsBoard({ initial, today, type }: { initial: ProjectCard[]; today: string; type: BoardType }) {
+  // Keep every project in state (the modal's "move to-do" list spans both boards); only this board's type is shown.
   const [cards, setCards] = useState(initial);
   useEffect(() => setCards(initial), [initial]);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [typeFilter, setTypeFilter] = useState<"all" | "build" | "learn">("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [fromStatus, setFromStatus] = useState<Status | null>(null);
@@ -59,8 +64,8 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
     window.history.replaceState(null, "", url);
   };
 
-  const allTags = useMemo(() => [...new Set(cards.flatMap((c) => c.tags))].sort(), [cards]);
-  const visible = (c: ProjectCard) => (typeFilter === "all" || c.type === typeFilter) && (!tagFilter || c.tags.includes(tagFilter));
+  const allTags = useMemo(() => [...new Set(cards.filter((c) => c.type === type).flatMap((c) => c.tags))].sort(), [cards, type]);
+  const visible = (c: ProjectCard) => c.type === type && (!tagFilter || c.tags.includes(tagFilter));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -120,51 +125,40 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
   }
 
   const active = activeId != null ? cards.find((c) => c.id === activeId) : null;
-  const dropped = cards.filter((c) => c.status === "dropped");
+  const dropped = cards.filter((c) => c.status === "dropped" && c.type === type);
 
   return (
     <div>
       <header className="rise flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="eyebrow">What you&apos;re building &amp; learning</p>
-          <h1 className="display mt-1 text-5xl leading-none">Projects</h1>
+          <p className="eyebrow">{COPY[type].eyebrow}</p>
+          <h1 className="display mt-1 text-5xl leading-none">{COPY[type].title}</h1>
         </div>
         <QuickAdd
           placeholder="New idea… (#tag !high)"
           onAdd={async (t) => {
-            const row = await createProject(t, "idea", typeFilter === "learn" ? "learn" : "build");
+            const row = await createProject(t, "idea", type);
             if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0, minutesLogged: 0 }, ...cs]);
           }}
           className="w-full max-w-sm"
         />
       </header>
 
-      <div className="rise rise-1 mt-6 flex flex-wrap items-center gap-1.5 text-xs">
-        {(["all", "build", "learn"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTypeFilter(t)}
-            aria-pressed={typeFilter === t}
-            className={`min-h-9 rounded-full px-3 ${typeFilter === t ? "bg-ink text-paper" : "bg-paper-2 text-ink-2 hover:text-ink"}`}
-          >
-            {t === "all" ? "All" : t === "build" ? "Build" : "Learn"}
-          </button>
-        ))}
-        {allTags.length > 0 && <span className="mx-1 h-4 w-px bg-rule-strong" />}
+      {allTags.length > 0 && <div className="rise rise-1 mt-6 flex flex-wrap items-center gap-1.5 text-xs">
         {allTags.map((t) => (
           <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)} aria-pressed={tagFilter === t} className={`min-h-9 rounded-full ${tagFilter === t ? "ring-2 ring-ink" : ""}`}>
             <Pill color={tagColor(t)}>{t}</Pill>
           </button>
         ))}
-      </div>
+      </div>}
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => (setActiveId(null), setCards(initial))}>
         <div className="rise rise-2 -mx-4 mt-8 flex snap-x gap-5 overflow-x-auto px-4 pb-6 md:mx-0 md:px-0 xl:grid xl:grid-cols-5 xl:overflow-visible">
           {COLUMNS.map((col) => {
             const items = cards.filter((c) => c.status === col.status && visible(c));
             return (
-              <Column key={col.status} col={col} items={items} today={today} onOpen={open} onAdd={async (t) => {
-                const row = await createProject(t, col.status, typeFilter === "learn" ? "learn" : "build");
+              <Column key={col.status} col={col} hint={col.hint[type]} items={items} today={today} onOpen={open} onAdd={async (t) => {
+                const row = await createProject(t, col.status, type);
                 if (row) setCards((cs) => [{ ...row, logCount: 0, lastLogAt: null, openTodos: 0, minutesLogged: 0 }, ...cs]);
               }} />
             );
@@ -213,7 +207,7 @@ export function ProjectsBoard({ initial, today }: { initial: ProjectCard[]; toda
   );
 }
 
-function Column({ col, items, today, onOpen, onAdd }: { col: (typeof COLUMNS)[number]; items: ProjectCard[]; today: string; onOpen: (id: number) => void; onAdd: (t: string) => Promise<void> }) {
+function Column({ col, hint, items, today, onOpen, onAdd }: { col: (typeof COLUMNS)[number]; hint: string; items: ProjectCard[]; today: string; onOpen: (id: number) => void; onAdd: (t: string) => Promise<void> }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${col.status}` });
   const [adding, setAdding] = useState(false);
   return (
@@ -230,7 +224,7 @@ function Column({ col, items, today, onOpen, onAdd }: { col: (typeof COLUMNS)[nu
           {items.map((c) => (
             <SortableCard key={c.id} card={c} today={today} onOpen={onOpen} />
           ))}
-          {items.length === 0 && <li className="px-1 py-3 text-xs text-muted">{col.hint}</li>}
+          {items.length === 0 && <li className="px-1 py-3 text-xs text-muted">{hint}</li>}
         </ul>
       </SortableContext>
       {col.status !== "done" &&
@@ -267,7 +261,6 @@ function SortableCard({ card, today, onOpen }: { card: ProjectCard; today: strin
 }
 
 function CardBody({ card, today, lifted }: { card: ProjectCard; today: string; lifted?: boolean }) {
-  const type = TYPE_OPTIONS.find((t) => t.value === card.type)!;
   const overdue = card.targetDate && card.targetDate < today && card.status !== "done";
   const lastLog = card.lastLogAt ? card.lastLogAt.slice(0, 10) : null;
   return (
@@ -280,12 +273,13 @@ function CardBody({ card, today, lifted }: { card: ProjectCard; today: string; l
         <p className="text-[0.9375rem] font-medium leading-snug">{card.title}</p>
         {card.priority === "high" && <span className="text-xs font-bold text-warn" title="High priority">!!</span>}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1">
-        <Pill color={type.color}>{type.label}</Pill>
-        {card.tags.slice(0, 3).map((t) => (
-          <Pill key={t} color={tagColor(t)}>{t}</Pill>
-        ))}
-      </div>
+      {card.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {card.tags.slice(0, 3).map((t) => (
+            <Pill key={t} color={tagColor(t)}>{t}</Pill>
+          ))}
+        </div>
+      )}
       {(card.progress > 0 || card.status === "active") && (
         <div className="mt-2.5 flex items-center gap-2">
           <div className="h-[3px] flex-1 rounded-full bg-paper-2">
