@@ -95,7 +95,7 @@ export async function getTodos() {
 export async function getProjectOptions() {
   const db = await getDb();
   return db
-    .select({ id: schema.projects.id, title: schema.projects.title, status: schema.projects.status })
+    .select({ id: schema.projects.id, title: schema.projects.title, status: schema.projects.status, type: schema.projects.type })
     .from(schema.projects)
     .orderBy(asc(schema.projects.title));
 }
