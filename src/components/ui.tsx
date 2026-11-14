@@ -199,6 +199,9 @@ export function Select<V extends string | number | null>({
 }) {
   const cur = options.find((o) => o.value === value);
   const listRef = useRef<HTMLUListElement>(null);
+  // Stable ref: React only calls it when the selected option mounts, not on every re-render
+  // (an inline callback would re-run on each parent tick and yank the list back while scrolling).
+  const selectedRef = useCallback((el: HTMLButtonElement | null) => el?.scrollIntoView({ block: "nearest" }), []);
   return (
     <Popover
       title={label}
@@ -232,9 +235,7 @@ export function Select<V extends string | number | null>({
                   type="button"
                   role="option"
                   aria-selected={sel}
-                  ref={(el) => {
-                    if (sel && el) el.scrollIntoView({ block: "nearest" });
-                  }}
+                  ref={sel ? selectedRef : undefined}
                   onClick={() => {
                     onChange(o.value);
                     close();
