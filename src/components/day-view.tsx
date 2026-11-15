@@ -131,7 +131,7 @@ export function DayView({ day, today, nowMinute: initialNowMinute, settings, cat
   }, []);
 
   return (
-    <div className="grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1fr)_300px]">
       <section className="min-w-0">
         <header className="rise flex flex-wrap items-end justify-between gap-4">
           <div>

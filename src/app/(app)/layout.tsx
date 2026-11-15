@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ConfirmProvider>
-      <div className="mx-auto flex min-h-dvh max-w-[1240px] flex-col md:flex-row">
-        <aside className="pt-safe md:sticky md:top-0 md:h-dvh md:w-52 md:shrink-0 md:border-r md:border-rule">
+      <div className="mx-auto flex min-h-dvh max-w-[1360px] flex-col md:flex-row">
+        <aside className="pt-safe md:sticky md:top-0 md:h-dvh md:w-44 md:shrink-0 md:border-r md:border-rule">
           <div className="flex items-center justify-between px-4 pb-1 pt-3 md:block md:px-6 md:pb-6 md:pt-8">
             <a href="/" className="display text-2xl italic leading-none md:text-[1.75rem]">
               Upward<span className="text-accent">.</span>
